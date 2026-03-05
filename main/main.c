@@ -47,7 +47,6 @@ static const char keypad_map[NROWS][NCOLS] = {
 #define LEDC_DUTY_RES  LEDC_TIMER_13_BIT
 #define LEDC_FREQUENCY 50
 
-// tune these for your servo
 #define SERVO_DUTY_LOCK    205
 #define SERVO_DUTY_UNLOCK  600
 
@@ -197,7 +196,7 @@ static char scan_keypad(void)
 
 static void keypad_task(void *arg)
 {
-    // Debounce FSM (simple like exercise)
+    // Debounce FSM 
     // 0 = WAIT_FOR_PRESS
     // 1 = DEBOUNCE
     // 2 = WAIT_FOR_RELEASE
@@ -299,7 +298,7 @@ static void control_task(void *arg)
             }
             else if (state == 2)
             {
-                // UNLOCKED: ignore keys (simple)
+                // UNLOCKED: ignore keys 
             }
             else if (state == 0) // READY
 {
