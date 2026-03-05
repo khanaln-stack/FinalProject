@@ -1,0 +1,13 @@
+# Target labels
+ bootloader
+# Source files and their labels
+C:/Users/nijuk/OneDrive/Desktop/LCD_display_starter_code-main/build/CMakeFiles/bootloader
+C:/Users/nijuk/OneDrive/Desktop/LCD_display_starter_code-main/build/CMakeFiles/bootloader.rule
+C:/Users/nijuk/OneDrive/Desktop/LCD_display_starter_code-main/build/CMakeFiles/bootloader-complete.rule
+C:/Users/nijuk/OneDrive/Desktop/LCD_display_starter_code-main/build/bootloader-prefix/src/bootloader-stamp/bootloader-build.rule
+C:/Users/nijuk/OneDrive/Desktop/LCD_display_starter_code-main/build/bootloader-prefix/src/bootloader-stamp/bootloader-configure.rule
+C:/Users/nijuk/OneDrive/Desktop/LCD_display_starter_code-main/build/bootloader-prefix/src/bootloader-stamp/bootloader-download.rule
+C:/Users/nijuk/OneDrive/Desktop/LCD_display_starter_code-main/build/bootloader-prefix/src/bootloader-stamp/bootloader-install.rule
+C:/Users/nijuk/OneDrive/Desktop/LCD_display_starter_code-main/build/bootloader-prefix/src/bootloader-stamp/bootloader-mkdir.rule
+C:/Users/nijuk/OneDrive/Desktop/LCD_display_starter_code-main/build/bootloader-prefix/src/bootloader-stamp/bootloader-patch.rule
+C:/Users/nijuk/OneDrive/Desktop/LCD_display_starter_code-main/build/bootloader-prefix/src/bootloader-stamp/bootloader-update.rule
