@@ -8,7 +8,7 @@
 #include <hd44780.h>
 
 
-// PINS + CONSTANTS
+// PINS and CONSTANTS
 
 // Keypad
 #define NROWS 4
@@ -35,7 +35,7 @@ static const char keypad_map[NROWS][NCOLS] = {
 #define LCD_D6 GPIO_NUM_48
 #define LCD_D7 GPIO_NUM_47
 
-// LED + buzzer
+// LED and buzzer
 #define LED_GPIO     GPIO_NUM_14
 #define BUZZER_GPIO  GPIO_NUM_13
 
@@ -47,8 +47,8 @@ static const char keypad_map[NROWS][NCOLS] = {
 #define LEDC_DUTY_RES  LEDC_TIMER_13_BIT
 #define LEDC_FREQUENCY 50
 
-#define SERVO_DUTY_LOCK    205
-#define SERVO_DUTY_UNLOCK  600
+#define SERVO_DUTY_LOCK    600
+#define SERVO_DUTY_UNLOCK  250
 
 // System
 #define LOOP_MS           20
@@ -58,12 +58,14 @@ static const char keypad_map[NROWS][NCOLS] = {
 #define MAX_ATTEMPTS    3
 #define AUTO_RELOCK_MS  10000
 
+// Global variables
 
-// GLOBALS
 static hd44780_t lcd;
 static QueueHandle_t keypad_queue;
 
-// INIT
+
+// Initialization
+
 static void gpio_init_outputs(void)
 {
     gpio_reset_pin(LED_GPIO);
@@ -125,19 +127,26 @@ static void servo_set_duty(int duty)
     ledc_update_duty(LEDC_MODE, LEDC_CHANNEL);
 }
 
-static void servo_lock(void)   { servo_set_duty(SERVO_DUTY_LOCK); }
-static void servo_unlock(void) { servo_set_duty(SERVO_DUTY_UNLOCK); }
+static void servo_lock(void)
+{
+    servo_set_duty(SERVO_DUTY_LOCK);
+}
+
+static void servo_unlock(void)
+{
+    servo_set_duty(SERVO_DUTY_UNLOCK);
+}
 
 static void keypad_init(void)
 {
-    // rows outputs
+    // rows = outputs
     for (int r = 0; r < NROWS; r++) {
         gpio_reset_pin(row_pins[r]);
         gpio_set_direction(row_pins[r], GPIO_MODE_OUTPUT);
         gpio_set_level(row_pins[r], !ACTIVE);
     }
 
-    // cols inputs with pullups (ACTIVE=0)
+    // cols = inputs with pullups
     for (int c = 0; c < NCOLS; c++) {
         gpio_reset_pin(col_pins[c]);
         gpio_set_direction(col_pins[c], GPIO_MODE_INPUT);
@@ -152,7 +161,8 @@ static void keypad_init(void)
     }
 }
 
-// LCD helper
+// LCD HELPERS
+
 static void lcd_line(int line, const char *msg)
 {
     hd44780_gotoxy(&lcd, 0, line);
@@ -168,7 +178,8 @@ static void lcd_show_enter(void)
     lcd_line(1, "");
 }
 
-// Keypad scan (no debounce here)
+// KEYPAD SCAN
+
 static char scan_keypad(void)
 {
     for (int r = 0; r < NROWS; r++)
@@ -188,15 +199,15 @@ static char scan_keypad(void)
             }
         }
     }
+
     return NOPRESS;
 }
 
 
-// TASK 1: Keypad task (debounce + send keys to queue)
+// TASK 1: KEYPAD TASK
 
 static void keypad_task(void *arg)
 {
-    // Debounce FSM 
     // 0 = WAIT_FOR_PRESS
     // 1 = DEBOUNCE
     // 2 = WAIT_FOR_RELEASE
@@ -209,7 +220,7 @@ static void keypad_task(void *arg)
     {
         char k = scan_keypad();
 
-        if (k_state == 0) // WAIT_FOR_PRESS
+        if (k_state == 0)
         {
             if (k != NOPRESS)
             {
@@ -218,7 +229,7 @@ static void keypad_task(void *arg)
                 k_state = 1;
             }
         }
-        else if (k_state == 1) // DEBOUNCE
+        else if (k_state == 1)
         {
             debounce_ms += LOOP_MS;
 
@@ -226,7 +237,6 @@ static void keypad_task(void *arg)
             {
                 if (k == last_key && k != NOPRESS)
                 {
-                    // confirmed key press- send once
                     xQueueSend(keypad_queue, &k, 0);
                     k_state = 2;
                 }
@@ -236,7 +246,7 @@ static void keypad_task(void *arg)
                 }
             }
         }
-        else // WAIT_FOR_RELEASE
+        else
         {
             if (k == NOPRESS)
             {
@@ -248,13 +258,17 @@ static void keypad_task(void *arg)
     }
 }
 
+// TASK 2: CONTROL TASK
 
-// TASK 2: Control task (state machine)
-
-static void control_task(void *arg) 
+static void control_task(void *arg)
 {
-    // states
-    // 0 READY, 1 CHECK, 2 UNLOCKED, 3 ALARM
+    // states:
+    // 0 = READY
+    // 1 = CHECK
+    // 2 = UNLOCKED
+    // 3 = ALARM
+    // 4 = WRONG_SCREEN
+
     int state = 0;
 
     char correct_code[CODE_LEN + 1] = "0000";
@@ -263,17 +277,17 @@ static void control_task(void *arg)
     entered[0] = '\0';
 
     int attempts = 0;
-
     TickType_t unlock_start = 0;
 
     lcd_show_enter();
 
     while (1)
     {
-        // UNLOCKED timing (non-blocking)
+        // auto relock timing
         if (state == 2)
         {
             TickType_t now = xTaskGetTickCount();
+
             if ((now - unlock_start) >= pdMS_TO_TICKS(AUTO_RELOCK_MS))
             {
                 servo_lock();
@@ -281,6 +295,8 @@ static void control_task(void *arg)
 
                 hd44780_clear(&lcd);
                 lcd_line(0, "Locked");
+                lcd_line(1, "");
+
                 vTaskDelay(pdMS_TO_TICKS(600));
 
                 lcd_show_enter();
@@ -288,56 +304,73 @@ static void control_task(void *arg)
             }
         }
 
-        // Wait for a key (but time out so UNLOCKED timer can still run)
         char key;
+
         if (xQueueReceive(keypad_queue, &key, pdMS_TO_TICKS(50)) == pdTRUE)
         {
+            // ALARM state
             if (state == 3)
             {
-                // ALARM: ignore keys
+                // ignore all input
             }
+
+            // UNLOCKED state
             else if (state == 2)
             {
-                // UNLOCKED: ignore keys 
+                // ignore all input while unlocked
             }
-            else if (state == 0) // READY
-{
-    // DIGIT PRESSED
-    if (key >= '0' && key <= '9')
-    {
-        if (entered_len < CODE_LEN)
-        {
-            entered[entered_len++] = key;
-            entered[entered_len] = '\0';
 
-            char stars[17];
-            for (int i = 0; i < entered_len; i++)
-                stars[i] = '*';
+            // WRONG SCREEN state
+            else if (state == 4)
+            {
+                // user must press * to try again
+                if (key == '*')
+                {
+                    entered_len = 0;
+                    entered[0] = '\0';
+                    lcd_show_enter();
+                    state = 0;
+                }
+            }
 
-            stars[entered_len] = '\0';
+            // READY state
+            else if (state == 0)
+            {
+                // digit pressed
+                if (key >= '0' && key <= '9')
+                {
+                    if (entered_len < CODE_LEN)
+                    {
+                        entered[entered_len++] = key;
+                        entered[entered_len] = '\0';
 
-            lcd_line(1, stars);
-        }
-    }
+                        char stars[17];
+                        for (int i = 0; i < entered_len; i++) {
+                            stars[i] = '*';
+                        }
+                        stars[entered_len] = '\0';
 
-    // CLEAR KEY (*)
-    else if (key == '*')
-    {
-        entered_len = 0;
-        entered[0] = '\0';
+                        lcd_line(1, stars);
+                    }
+                }
 
-        lcd_line(1, "");   // clears entered digits
-    }
+                // clear key
+                else if (key == '*')
+                {
+                    entered_len = 0;
+                    entered[0] = '\0';
+                    lcd_line(1, "");
+                }
 
-    // ENTER KEY (#)
-    else if (key == '#')
-    {
-        state = 1;   // go to CHECK state
-    }
-}
-        
+                // enter key
+                else if (key == 'D')
+                {
+                    state = 1;
+                }
+            }
 
-            if (state == 1) // CHECK
+            // CHECK state
+            if (state == 1)
             {
                 if (strcmp(entered, correct_code) == 0)
                 {
@@ -353,36 +386,34 @@ static void control_task(void *arg)
                     lcd_line(1, "Unlocked");
 
                     unlock_start = xTaskGetTickCount();
-                    state = 2; // UNLOCKED
+                    state = 2;
                 }
                 else
                 {
                     attempts++;
-
                     entered_len = 0;
                     entered[0] = '\0';
-
-                    char msg[32];
-                    snprintf(msg, sizeof(msg), "Wrong %d/%d", attempts, MAX_ATTEMPTS);
-
-                    hd44780_clear(&lcd);
-                    lcd_line(0, "Access Denied");
-                    lcd_line(1, msg);
-
-                    vTaskDelay(pdMS_TO_TICKS(800));
 
                     if (attempts >= MAX_ATTEMPTS)
                     {
                         gpio_set_level(BUZZER_GPIO, 1);
+
                         hd44780_clear(&lcd);
                         lcd_line(0, "System Locked");
                         lcd_line(1, "");
-                        state = 3; // ALARM
+
+                        state = 3;
                     }
                     else
                     {
-                        lcd_show_enter();
-                        state = 0; // READY
+                        char msg[32];
+                        snprintf(msg, sizeof(msg), "Wrong %d/%d", attempts, MAX_ATTEMPTS);
+
+                        hd44780_clear(&lcd);
+                        lcd_line(0, "Access Denied");
+                        lcd_line(1, msg);
+
+                        state = 4;
                     }
                 }
             }
@@ -391,7 +422,8 @@ static void control_task(void *arg)
 }
 
 
-// app_main
+// APP main
+
 void app_main(void)
 {
     gpio_init_outputs();
@@ -399,13 +431,12 @@ void app_main(void)
     servo_init();
     keypad_init();
 
-    // start locked
     servo_lock();
     gpio_set_level(LED_GPIO, 0);
     gpio_set_level(BUZZER_GPIO, 0);
 
     keypad_queue = xQueueCreate(10, sizeof(char));
 
-    xTaskCreate(keypad_task,  "keypad_task",  2048, NULL, 5, NULL);
+    xTaskCreate(keypad_task, "keypad_task", 2048, NULL, 5, NULL);
     xTaskCreate(control_task, "control_task", 4096, NULL, 6, NULL);
 }
