@@ -1,102 +1,45 @@
-# Electronic Keypad Lock System
+# Smart Door Lock Security System
 
-## Team Members
-Niju Khanal  
-Madisen Bailey
+Team Members: Niju Khanal, Madisen Bailey
 
 ---
 
-# System Description
-This project implements an electronic keypad-controlled locking system using an ESP32-S3 microcontroller. The system allows a user to unlock a servo-driven lock mechanism by entering a four-digit passcode on a 4×4 matrix keypad. A 16×2 LCD display provides user feedback by prompting the user to enter the passcode and displaying system messages such as successful unlock or incorrect password attempts.
+## System Behavior
 
-When a correct code is entered and confirmed using the enter key (`#`), the system rotates a servo motor to unlock the mechanism and turns on an LED indicator to show that the system is in the unlocked state. After a fixed period of time, the system automatically relocks by rotating the servo back to its original position. If an incorrect code is entered, the LCD displays an error message and the system increments a failed attempt counter. After three incorrect attempts, the system enters an alarm state and activates a buzzer to indicate a security lockout.
+This project implements a smart door locking system using an ESP32-S3 microcontroller, a 4×4 keypad, a 16×2 LCD display, a servo motor, an LED indicator, and a buzzer. The keypad allows a user to enter a four-digit security code, which is processed by the microcontroller. The LCD provides instructions and feedback to the user, such as prompting the user to enter the code and displaying whether access is granted or denied. As the user enters digits, the display shows masked characters to indicate progress.
 
-The system software is implemented using the ESP-IDF framework and FreeRTOS. Two separate tasks are used in the design. The keypad task continuously scans the keypad matrix and detects user input while implementing debounce logic to prevent repeated key detection. Detected key presses are sent to the control task through a queue. The control task processes user input, updates the LCD display, controls the servo motor, and manages system states. This task-based architecture ensures that the system remains responsive and prevents blocking delays.
+When the correct code is entered, the system unlocks the door by rotating the servo motor to the unlock position. At the same time, the LED turns on to indicate successful access. The door remains unlocked for approximately ten seconds, after which the system automatically returns the servo to the locked position and turns the LED off. This automatic relock ensures the door does not remain unlocked if the user forgets to secure it.
 
----
-
-# Design Alternatives
-
-## Keypad Input Handling
-
-### Option 1: Polling within the main control loop
-- The main loop continuously checks the keypad for input.
-- This approach is simple to implement but can block other system operations and reduce responsiveness.
-
-### Option 2: Dedicated keypad task (Chosen Approach)
-- A separate FreeRTOS task scans the keypad independently.
-- Key presses are sent to the main control logic using a queue.
-- This approach keeps the system responsive and separates input handling from system control logic.
-
-The dedicated keypad task approach was selected because it provides a cleaner architecture and prevents the control logic from being blocked while waiting for user input.
+If the user enters an incorrect code, the LCD displays a message indicating that access is denied and shows how many incorrect attempts have occurred. The system keeps track of failed attempts, and after three incorrect entries, it enters an alarm state. In this state, the buzzer activates and the system becomes locked, preventing further access attempts. The software uses FreeRTOS tasks to separate keypad scanning from the main control logic so the system can continuously read input, update the display, and control the locking mechanism without delays.
 
 ---
 
-## Lock Mechanism Actuator
+## Design Alternatives
 
-### DC Motor
-- Could rotate a locking mechanism.
-- Requires additional circuitry such as an H-bridge motor driver.
-- Difficult to control precise positions.
+Several design options were considered before selecting the final configuration of the system.
 
-### Stepper Motor
-- Provides precise position control.
-- Requires a motor driver and more complex control logic.
+For the access method, options included keypad PIN entry, biometric authentication such as fingerprint recognition, and unlocking through a mobile application. The keypad method was chosen because it is simple, reliable, and does not require additional hardware such as sensors or wireless modules.
 
-### Servo Motor (Chosen Approach)
-- Controlled directly with a PWM signal.
-- Provides simple position control.
-- Only two positions are needed: locked and unlocked.
+For user feedback, options included LED indicators, an LCD display, or both. The final design uses both an LCD and an LED. The LCD allows the system to display detailed messages such as prompts and error notifications, while the LED provides a quick visual indication when the door has been successfully unlocked.
 
-The servo motor was selected because it simplifies the hardware design and provides reliable position control with minimal additional circuitry.
+For the locking mechanism, a servo motor and a DC motor were considered. A servo motor was selected because it allows precise control of the locked and unlocked positions using PWM signals, which simplifies the design compared to a DC motor that would require additional mechanical stopping mechanisms.
+
+For security alerts, the system could either show visual warnings or produce an audible alert. The final design uses a buzzer together with LCD messages so the system clearly indicates when too many incorrect attempts have occurred.
+
+The system also implements two security features: a limit of three incorrect attempts and an automatic relock after ten seconds. These features help improve security and prevent the door from remaining unlocked accidentally.
 
 ---
 
-## User Feedback Interface
+## Summary of Testing Results
 
-### Serial Monitor
-- Useful during development for debugging.
-- Requires connection to a computer.
-- Not practical for standalone operation.
-
-### LCD Display (Chosen Approach)
-- Provides clear real-time feedback to the user.
-- Allows the system to operate independently from a computer.
-- Displays instructions, status messages, and error notifications.
-
-A 16×2 LCD display was chosen to provide a simple and intuitive interface for users interacting with the lock system.
-
----
-
-## Power System Design
-
-### Single Power Source
-- Powering all components from the ESP32.
-- Servos can draw large currents which may destabilize the microcontroller.
-
-### Separate Power Sources (Chosen Approach)
-- ESP32 powered through USB or battery pack.
-- Servo motor powered by an external battery pack.
-- Grounds connected to maintain a common reference.
-
-Using a separate power supply for the servo motor improves system stability and prevents voltage drops that could reset the microcontroller.
-
----
-
-# Testing Summary
-
-Testing was performed in stages to verify correct operation of both hardware components and software functionality.
-
-| Test Component | Test Description | Expected Result | Observed Result | Status |
-|----------------|-----------------|----------------|----------------|--------|
-| LCD Display Initialization | Initialize LCD and print test message | LCD displays text correctly | LCD displayed test messages after initialization | Pass |
-| Keypad Matrix Detection | Press each key on the keypad and verify correct character detection | Correct character detected for each key press | All keys correctly detected by keypad scanning task | Pass |
-| Keypad Debounce Logic | Press and hold keys to verify debounce filtering | Only one input registered per key press | Debounce logic successfully prevented repeated inputs | Pass |
-| Servo Motor Control | Send PWM signals to rotate servo between lock and unlock positions | Servo rotates between defined angles | Servo rotated correctly between locked and unlocked states | Pass |
-| Passcode Verification | Enter correct passcode and press enter key | Servo unlocks and LCD displays success message | Correct code triggered unlock sequence | Pass |
-| Incorrect Code Handling | Enter incorrect passcode | LCD displays error message and increments attempt counter | Incorrect attempts tracked correctly | Pass |
-| Security Lockout | Enter incorrect passcode three times | Buzzer activates and system enters alarm state | Alarm triggered after three failed attempts | Pass |
-| Auto Relock Function | Wait after successful unlock | System relocks automatically after timeout | Servo returned to locked position after delay | Pass |
-| Integrated System Test | Full system operation with keypad input, LCD feedback, and servo control | System performs all functions correctly | System operated reliably during repeated tests | Pass |
-
-Testing confirmed that the system responds correctly to user input, maintains stable operation across all components, and enforces security behavior as designed.
+| Subsystem | Behavior Tested | Expected Result | Observed Result |
+|-----------|----------------|----------------|----------------|
+| Keypad | Detect key press | Correct key is detected when pressed | Key presses were detected correctly |
+| Keypad | Debounce behavior | Single key press registers once | No repeated key signals occurred |
+| LCD | Display prompt | LCD shows "Enter Code" | Prompt displayed correctly |
+| LCD | Display access result | LCD shows access granted or denied | Messages displayed correctly |
+| Servo Motor | Unlock action | Servo rotates to unlock position | Servo moved to unlock position |
+| Servo Motor | Automatic relock | Servo returns to lock after 10 seconds | Servo relocked after delay |
+| LED | Unlock indicator | LED turns on when door unlocks | LED turned on correctly |
+| Security Logic | Failed attempt counting | Attempts increase after wrong code | Attempt counter worked correctly |
+| Security Logic | Alarm after 3 attempts | Buzzer activates and system locks | Alarm triggered correctly |
